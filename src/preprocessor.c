@@ -22,7 +22,7 @@ static const char* read_file(const char* path) {
     return result;
 }
 
-struct preprocessed_source* preprocess_file(struct options* options, const char* file) {
+static struct preprocessed_source* preprocess_file(struct options* options, const char* file) {
     struct preprocessed_source* result = (struct preprocessed_source*)malloc(sizeof(struct preprocessed_source));
     if (result != NULL) {
         result->name = duplicate_string(file);
