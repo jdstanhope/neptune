@@ -26,9 +26,14 @@ static struct preprocessed_source* preprocess_file(struct options* options, cons
     struct preprocessed_source* result = (struct preprocessed_source*)malloc(sizeof(struct preprocessed_source));
     if (result != NULL) {
         result->name = duplicate_string(file);
-        result->buffer = read_file(file);
         result->errors = NULL;
         result->tokens = NULL;
+        result->buffer = NULL;
+        const char* buffer = read_file(file);
+        if (buffer != NULL) {
+            result->buffer = buffer;
+            // tokenize(buffer, &result->tokens, &result->errors);
+        }
     }
     return result;
 }
@@ -76,6 +81,7 @@ void free_preprocessed_source_list(struct preprocessed_source_list* sources) {
 void free_preprocessed_source(struct preprocessed_source* source) {
     if (source != NULL) {
         free_error_list(source->errors);
+        free(source->name);
         free(source->buffer);
         free(source);
     }
