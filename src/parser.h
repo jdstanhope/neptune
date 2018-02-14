@@ -3,4 +3,4 @@
 
 void parser(void);
 
-#endif /* __parser_h__ */
+#endif

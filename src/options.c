@@ -51,6 +51,8 @@ struct options* parse_options(int argc, const char* argv[]) {
 				result->action = options_action_version;
 			} else if (strcmp(arg, "-c") == 0) {
 				result->action = options_action_compile;
+			} else if (strcmp(arg, "-E") == 0) {
+				result->action = options_action_preprocess;
 			} else if (strcmp(arg, "-o") == 0) {
 				const char* output = next_arg(argc, argv, &index, &offset);
 				if (output != NULL) {

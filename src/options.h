@@ -2,11 +2,13 @@
 #define _neptune_options_h_
 
 #include "neptune.h"
+#include "string_list.h"
 
 enum options_action {
 	options_action_help,
 	options_action_error,
 	options_action_version,
+	options_action_preprocess,
 	options_action_compile,
 	options_action_compile_and_link,
 	options_action_link
