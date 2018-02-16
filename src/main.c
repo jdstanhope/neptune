@@ -8,6 +8,13 @@
 #include "linker.h"
 #include "string_list.h"
 
+//
+
+/**/
+
+/**
+ * Need more comments.
+ */
 int main(int argc, const char* argv[]) {
 	int exitCode = 0;
 	struct options* options = parse_options(argc, argv);

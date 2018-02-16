@@ -29,8 +29,8 @@ struct preprocessed_token {
 };
 
 struct preprocessed_source {
-    const char* name;
-    const char* buffer;
+    char* name;
+    char* buffer;
     struct preprocessed_token* tokens;
     struct error_list* errors;
 };
