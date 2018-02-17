@@ -55,6 +55,7 @@ enum token_type {
     token_integer_i64,
     token_real_float,
     token_real_double,
+    token_real_double_long,
 };
 
 struct token {
@@ -250,10 +251,6 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             token->type = token_real_float;
             ++token->length;
             next_char(state);
-        } else if (c == 'd' || c == 'D') {
-            token->type = token_real_double;
-            ++token->length;
-            next_char(state);
         } else if (c == 'i') {
             token->type = token_integer_i64;
             ++token->length;
@@ -276,13 +273,17 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
                 next_char(state);                
             }
         } else if (c == 'l' || c == 'L') {
-            token->type = token_integer_long;
             ++token->length;
             c = next_char(state);
-            if (c == 'u' || c == 'U') {
-                token->type = token_integer_unsigned_long;
-                ++token->length;
-                next_char(state);
+            if (point || exponent) {
+                token->type = token_real_double_long;  
+            } else {
+                token->type = token_integer_long;
+                if (c == 'u' || c == 'U') {
+                    token->type = token_integer_unsigned_long;
+                    ++token->length;
+                    next_char(state);
+                }
             }
         }
         return 0;
