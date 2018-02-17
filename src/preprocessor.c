@@ -293,6 +293,8 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             c = next_char(state);
         }
         return 0;
+    } else {
+        next_char(state);
     }
     return 0;
 }
