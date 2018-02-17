@@ -47,7 +47,14 @@ enum token_type {
     token_string,
     token_char,
     token_integer,
-    token_real,
+    token_integer_hex,
+    token_integer_octal,
+    token_integer_unsigned,
+    token_integer_long,
+    token_integer_unsigned_long,
+    token_integer_i64,
+    token_real_float,
+    token_real_double,
 };
 
 struct token {
@@ -189,9 +196,94 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
     } else if (isnumber(c)) {
         state->is_new_line = 0;
         token->type = token_integer;
+        int point = 0;
+        int exponent = 0;
+        if (c == '0') {
+            ++token->length;
+            c = next_char(state);
+            if (c == '.') {
+                token->type = token_real_double;
+                point = 1;
+                ++token->length;
+                c = next_char(state);
+            } else if (c == 'x' || c == 'X') {
+                token->type = token_integer_hex;
+                ++token->length;
+                c = next_char(state);
+                while (ishexnumber(c) && c != '\0') {
+                    ++token->length;
+                    c = next_char(state);
+                }
+                return 0;
+            } else if (isnumber(c)) {
+                token->type = token_integer_octal;
+                while (isnumber(c) && c != '\0') {
+                    ++token->length;
+                    c = next_char(state);
+                }
+                return 0;
+            } else {
+                token->type = token_integer;
+                return 0;
+            }
+        } 
         while (isnumber(c) && c != '\0') {
             ++token->length;
-            c = next_char(state);            
+            c = next_char(state);
+            if (c == '.' && point == 0 && exponent == 0) {
+                token->type = token_real_double;
+                point = 1;
+                ++token->length;
+                c = next_char(state);
+            } else if ((c == 'e' || c == 'E') && exponent == 0) {
+                token->type = token_real_double;
+                exponent = 1;
+                ++token->length;
+                c = next_char(state);
+                if (c == '-' || c == '+') {
+                    ++token->length;
+                    c = next_char(state);
+                }
+            }
+        }
+        if (c == 'f' || c == 'F') {
+            token->type = token_real_float;
+            ++token->length;
+            next_char(state);
+        } else if (c == 'd' || c == 'D') {
+            token->type = token_real_double;
+            ++token->length;
+            next_char(state);
+        } else if (c == 'i') {
+            token->type = token_integer_i64;
+            ++token->length;
+            c = next_char(state);
+            if (c == '6') {
+                ++token->length;
+                c = next_char(state);
+                if (c == '4') {
+                    ++token->length;
+                    next_char(state);
+                }
+            }
+        } else if (c == 'u' || c == 'U') {
+            token->type = token_integer_unsigned;
+            ++token->length;
+            c = next_char(state);
+            if (c == 'l' || c == 'L') {
+                token->type = token_integer_unsigned_long;
+                ++token->length;
+                next_char(state);                
+            }
+        } else if (c == 'l' || c == 'L') {
+            token->type = token_integer_long;
+            ++token->length;
+            c = next_char(state);
+            if (c == 'u' || c == 'U') {
+                token->type = token_integer_unsigned_long;
+                ++token->length;
+                next_char(state);
+            }
         }
         return 0;
     } else if (isspace(c)) {
@@ -212,7 +304,7 @@ static struct preprocessed_token* tokenize(struct options* options, const char* 
     state.line = 1;
     state.is_new_line = 1;
     state.offset = 0;
-    struct token token = { };
+    struct token token = { 0 };
     while (next_token(&state, &token) == 0) {
 
     }

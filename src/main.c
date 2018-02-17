@@ -8,10 +8,6 @@
 #include "linker.h"
 #include "string_list.h"
 
-//
-
-/**/
-
 /**
  * Need more comments.
  */
