@@ -29,18 +29,18 @@ struct tokenizer_state {
     char* buffer;
     size_t offset;
     int is_new_line;
-    unsigned long line;
-    unsigned long column;
+    unsigned int line;
+    unsigned int column;
 };
 
 enum token_type {
     token_unknown,
     token_space,
+    token_newline,
     token_directive,
     token_stringify,
     token_concat,
     token_comment,
-    token_newline,
     token_continue,
     token_punc,
     token_identifier,
@@ -61,6 +61,8 @@ enum token_type {
 struct token {
     char* text;
     size_t length;
+    unsigned int line;
+    unsigned int column;
     enum token_type type;
 };
 
@@ -71,6 +73,7 @@ static char next_char(struct tokenizer_state* state) {
     }
     ++state->offset;
     char n = *(state->buffer + state->offset);
+    // TODO: handle '\r' before 
     if (n == '\n') {
         ++state->line;
         state->is_new_line = 1;
@@ -89,6 +92,8 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
 
     token->text = state->buffer + state->offset;
     token->length = 0;
+    token->line = state->line;
+    token->column = state->column;
     token->type = token_unknown;
 
     char p = *(state->buffer + state->offset + 1);
@@ -137,6 +142,7 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
         }
         return 0;
     } else if (c == '"') {
+        int unescaped_newline = 0;
         state->is_new_line = 0;
         token->type = token_string;
         token->length = 1;
@@ -144,7 +150,26 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             c = next_char(state);
             ++token->length;
             if (c == '\\') {
-                next_char(state);
+                c = next_char(state);
+                switch (c) {
+                    case '\n':
+                        /* continue */
+                        break;
+                    case 'n':
+                        /* new line */
+                        break;
+                    case 'r':
+                        /* return */
+                        break;
+                    case 't':
+                        /* tab */
+                        break;
+                    case 'v':
+                        /* vertical tab */
+                        break;
+                    default:
+                        break;
+                }
                 c = next_char(state);
                 token->length += 2;
             } 
@@ -162,7 +187,12 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             c = next_char(state);
             ++token->length;
             if (c == '\\') {
-                next_char(state);
+                c = next_char(state);
+                switch (c) {
+                /* handle escape characters */
+                default:
+                    break;
+                }
                 c = next_char(state);
                 token->length += 2;
             } 
@@ -176,14 +206,113 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
         state->is_new_line = 0;
         token->type = token_continue;
         token->length = 1;
-        next_char(state);
+        c = next_char(state);
+        if (c != '\n') {
+            // escaped nothing?
+        }
         return 0;
     } else if (ispunct(c)) {
         state->is_new_line = 0;
         token->type = token_punc;
-        while (ispunct(c) && c != '\0') {
-            ++token->length;
-            c = next_char(state);            
+        switch (c) {
+            case '[':
+            case ']':
+            case '{':
+            case '}':
+            case '(':
+            case ')':
+            case ';':
+            case '!':
+            case ':':
+            case ',':
+            case '?':
+            case '^':
+                token->length = 1;
+                next_char(state);            
+                break;
+            case '*':
+            case '/':
+            case '%':
+            case '~':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=') {
+                    token->length = 2;
+                    next_char(state);                    
+                }
+                break;
+            case '+':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '+') {
+                    token->length = 2;
+                    next_char(state);                    
+                }
+                break;
+            case '-':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '-' || c == '>') {
+                    token->length = 2;
+                    next_char(state);                    
+                }
+                break;
+            case '|':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '|') {
+                    token->length = 2;
+                    next_char(state);
+                }
+                break;
+            case '&':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '&') {
+                    token->length = 2;
+                    next_char(state);
+                }
+                break;
+            case '<':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '<') {
+                    token->length = 2;
+                    next_char(state);
+                }
+                break;
+            case '>':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=' || c == '>') {
+                    token->length = 2;
+                    next_char(state);
+                }
+                break;
+            case '=':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '=') {
+                    token->length = 2;
+                    next_char(state);
+                }
+                break;
+            case '.':
+                token->length = 1;
+                c = next_char(state);
+                if (c == '.') {
+                    token->length = 2;
+                    c = next_char(state);
+                    if (c == '.') {
+                        token->length = 3;
+                        next_char(state);
+                    }
+                }
+                break;
+            default:
+                token->length = 1;
+                next_char(state);
+                break;
         }
         return 0;
     } else if (isalpha(c) || c == '_') {
@@ -203,8 +332,8 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             ++token->length;
             c = next_char(state);
             if (c == '.') {
-                token->type = token_real_double;
                 point = 1;
+                token->type = token_real_double;
                 ++token->length;
                 c = next_char(state);
             } else if (c == 'x' || c == 'X') {
@@ -232,13 +361,13 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             ++token->length;
             c = next_char(state);
             if (c == '.' && point == 0 && exponent == 0) {
-                token->type = token_real_double;
                 point = 1;
+                token->type = token_real_double;
                 ++token->length;
                 c = next_char(state);
             } else if ((c == 'e' || c == 'E') && exponent == 0) {
-                token->type = token_real_double;
                 exponent = 1;
+                token->type = token_real_double;
                 ++token->length;
                 c = next_char(state);
                 if (c == '-' || c == '+') {
@@ -287,31 +416,22 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
             }
         }
         return 0;
+    } else if (c == '\n') {
+        token->type = token_newline;
+        token->length = 1;
+        next_char(state);
     } else if (isspace(c)) {
         token->type = token_space;
-        while (isspace(c) && c != '\0') {
+        while (isspace(c) && c != '\n' && c != '\0') {
             ++token->length;
             c = next_char(state);
         }
         return 0;
     } else {
+        token->length = 1;
         next_char(state);
     }
     return 0;
-}
-
-static struct preprocessed_token* tokenize(struct options* options, const char* buffer, struct error_list** errors) {
-    struct tokenizer_state state;
-    state.buffer = buffer;
-    state.column = 1;
-    state.line = 1;
-    state.is_new_line = 1;
-    state.offset = 0;
-    struct token token = { 0 };
-    while (next_token(&state, &token) == 0) {
-
-    }
-    return NULL;
 }
 
 static struct preprocessed_source* preprocess_file(struct options* options, const char* file) {
@@ -319,12 +439,68 @@ static struct preprocessed_source* preprocess_file(struct options* options, cons
     if (result != NULL) {
         result->name = duplicate_string(file);
         result->errors = NULL;
-        result->tokens = NULL;
+        result->root = NULL;
         result->buffer = NULL;
         char* buffer = read_file(file);
         if (buffer != NULL) {
-            result->tokens = tokenize(options, buffer, &result->errors);
             result->buffer = buffer;
+
+            struct tokenizer_state state;
+            state.buffer = buffer;
+            state.column = 1;
+            state.line = 1;
+            state.is_new_line = 1;
+            state.offset = 0;
+
+            struct token token;
+            while (next_token(&state, &token) == 0) {
+                switch (token.type) {
+                    case token_directive:
+                        break;
+                    case token_unknown:
+                        break;
+                    case token_space:
+                        break;
+                    case token_stringify:
+                        break;
+                    case token_concat:
+                        break;
+                    case token_comment:
+                        break;
+                    case token_newline:
+                        break;
+                    case token_continue:
+                        break;
+                    case token_punc:
+                        break;
+                    case token_identifier:
+                        break;
+                    case token_string:
+                        break;
+                    case token_char:
+                        break;
+                    case token_integer:
+                        break;
+                    case token_integer_hex:
+                        break;
+                    case token_integer_octal:
+                        break;
+                    case token_integer_unsigned:
+                        break;
+                    case token_integer_long:
+                        break;
+                    case token_integer_unsigned_long:
+                        break;
+                    case token_integer_i64:
+                        break;
+                    case token_real_float:
+                        break;
+                    case token_real_double:
+                        break;
+                    case token_real_double_long:
+                        break;
+                }
+            }
         }
     }
     return result;

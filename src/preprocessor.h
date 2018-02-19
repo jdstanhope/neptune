@@ -5,33 +5,34 @@
 #include "neptune.h"
 #include "options.h"
 
-enum preprocessed_token_type {
-    preprocessed_token_pragma,
-    preprocessed_token_include,
-    preprocessed_token_define,
-    preprocessed_token_if,
-    preprocessed_token_ifdef,
-    preprocessed_token_elif,
-    preprocessed_token_comment,
-    preprocessed_token_use,
-    preprocessed_token_keyword,
-    preprocessed_token_punct,
-    preprocessed_token_identifier
+enum preprocessed_node_type {
+    preprocessed_node_root,
+    preprocessed_node_pragma,
+    preprocessed_node_include,
+    preprocessed_node_define,
+    preprocessed_node_if,
+    preprocessed_node_ifdef,
+    preprocessed_node_else,
+    preprocessed_node_elif,
+    preprocessed_node_comment,
+    preprocessed_node_use,
+    preprocessed_node_code
 };
 
-struct preprocessed_token {
-    enum preprocessed_token_type type;
+struct preprocessed_node {
+    enum preprocessed_node_type type;
     char* offset;
     size_t length;
     size_t line;
     size_t column;
-    struct preprocessed_token* next;
+    struct preprocessed_node* next;
+    struct preprocessed_node* first;
 };
 
 struct preprocessed_source {
     char* name;
     char* buffer;
-    struct preprocessed_token* tokens;
+    struct preprocessed_node* root;
     struct error_list* errors;
 };
 
