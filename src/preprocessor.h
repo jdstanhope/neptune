@@ -10,13 +10,18 @@ enum preprocessed_node_type {
     preprocessed_node_pragma,
     preprocessed_node_include,
     preprocessed_node_define,
+    preprocessed_node_undef,
     preprocessed_node_if,
     preprocessed_node_ifdef,
+    preprocessed_node_ifndef,
     preprocessed_node_else,
     preprocessed_node_elif,
+    preprocessed_node_line,
+    preprocessed_node_error,
+    preprocessed_node_unknown,
     preprocessed_node_comment,
-    preprocessed_node_use,
-    preprocessed_node_code
+    preprocessed_node_block,
+    preprocessed_node_token
 };
 
 struct preprocessed_node {

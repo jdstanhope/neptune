@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 #include "preprocessor.h"
 
 static char* read_file(const char* path) {
@@ -434,6 +435,205 @@ static int next_token(struct tokenizer_state* state, struct token* token) {
     return 0;
 }
 
+static void put_token(struct tokenizer_state* state, struct token* token) {
+    if (token->type == token_directive) {
+        state->is_new_line = 1;
+    }
+    state->offset = state->offset - token->length;
+}
+
+static struct preprocessed_node* make_node(enum preprocessed_node_type type) {
+    struct preprocessed_node* result = (struct preprocessed_node *)malloc(sizeof(struct preprocessed_node));
+    if (result != NULL) {
+        result->type = type;
+        result->offset = NULL;
+        result->length = 0;
+        result->column = 0;
+        result->line = 0;
+        result->next = NULL;
+        result->first = NULL;
+    }
+    return result;
+}
+
+static struct preprocessed_node* make_token_node(struct token* token) {
+    struct preprocessed_node* result = (struct preprocessed_node *)malloc(sizeof(struct preprocessed_node));
+    if (result != NULL) {
+        result->type = preprocessed_node_token;
+        result->offset = token->text;
+        result->length = token->length;
+        result->line = token->line;
+        result->column = token->column;
+        result->next = NULL;
+        result->first = NULL;
+    }
+    return result;
+}
+
+static void append_child_node(struct preprocessed_node* parent, struct preprocessed_node* child) {
+    if (parent->first == NULL) {
+        parent->first = child;
+    } else {
+        struct preprocessed_node* last = parent->first;
+        while (last->next != NULL) {
+            last = last->next;
+        }
+        last->next = child;
+    }
+}
+
+static struct preprocessed_node* preprocess_easy_directive(enum preprocessed_node_type type, struct tokenizer_state* state, struct token* token) {
+    struct preprocessed_node* result = make_node(type);
+    append_child_node(result, make_token_node(token));
+    while (next_token(state, token) == 0) {
+        append_child_node(result, make_token_node(token));
+        if (token->type == token_continue) {
+            next_token(state, token);
+            append_child_node(result, make_token_node(token));
+        } else if (token->type == token_newline) {
+            return result;            
+        }
+    }
+    return result;
+}
+
+static struct preprocessed_node* preprocess_include(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_include, state, token);
+}
+
+static struct preprocessed_node* preprocess_undef(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_undef, state, token);
+}
+
+static struct preprocessed_node* preprocess_define(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_define, state, token);
+}
+
+static struct preprocessed_node* preprocess_node(struct tokenizer_state* state, struct token* token);
+
+static struct preprocessed_node* preprocess_ifdef(struct tokenizer_state* state, struct token* token) {
+    struct preprocessed_node* result = make_node(preprocessed_node_ifdef);
+    append_child_node(result, make_token_node(token));
+    while (next_token(state, token) == 0) {
+        append_child_node(result, make_token_node(token));
+        if (token->type == token_continue) {
+            next_token(state, token);
+            append_child_node(result, make_token_node(token));
+        } else if (token->type == token_newline) {
+            next_token(state, token);
+            struct preprocessed_node* body = preprocess_node(state, token);
+            append_child_node(result, body);
+            next_token(state, token);
+            if (token->type == token_directive) {
+                // TODO: eat possible space
+                append_child_node(result, make_token_node(token));
+                next_token(state, token);
+                if (strncmp("endif", token->text, token->length) == 0) {
+                    append_child_node(result, make_token_node(token));
+                    return result;
+                } else {
+                    return NULL;
+                }
+            } else {
+                put_token(state, token);
+                return result;
+            }
+        } else {
+
+        }
+    }
+    return result;
+}
+
+static struct preprocessed_node* preprocess_ifndef(struct tokenizer_state* state, struct token* token) {
+    struct preprocessed_node* result = preprocess_ifdef(state, token);
+    if (result != NULL) {
+        result->type = preprocessed_node_ifndef;
+    }
+    return result;
+}
+
+static struct preprocessed_node* preprocess_if(struct tokenizer_state* state, struct token* token) {
+    struct preprocessed_node* result = make_node(preprocessed_node_if);
+    return result;
+}
+
+static struct preprocessed_node* preprocess_pragma(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_pragma, state, token);
+}
+
+static struct preprocessed_node* preprocess_error(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_error, state, token);
+}
+
+static struct preprocessed_node* preprocess_line(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_line, state, token);
+}
+
+static struct preprocessed_node* preprocess_unknown(struct tokenizer_state* state, struct token* token) {
+    return preprocess_easy_directive(preprocessed_node_unknown, state, token);
+}
+
+static struct preprocessed_node* preprocess_directive(struct tokenizer_state* state, struct token* token) {
+    // TODO: prepend initial token to node
+    if (next_token(state, token) == 0) {
+        if (token->type == token_space) {
+            next_token(state, token);
+            // TODO: prepend token to node
+        }        
+        if (token->type == token_identifier) {
+            if (strncmp("include", token->text, token->length) == 0) {
+                return preprocess_include(state, token);
+            } else if (strncmp("define", token->text, token->length) == 0) {
+                return preprocess_define(state, token);
+            } else if (strncmp("undef", token->text, token->length) == 0) {
+                return preprocess_undef(state, token);
+            } else if (strncmp("ifndef", token->text, token->length) == 0) {
+                return preprocess_ifndef(state, token);
+            } else if (strncmp("ifdef", token->text, token->length) == 0) {
+                return preprocess_ifdef(state, token);
+            } else if (strncmp("if", token->text, token->length) == 0) {
+                return preprocess_if(state, token);
+            } else if (strncmp("pragma", token->text, token->length) == 0) {
+                return preprocess_pragma(state, token);
+            } else if (strncmp("error", token->text, token->length) == 0) {
+                return preprocess_error(state, token);
+            } else if (strncmp("line", token->text, token->length) == 0) {
+                return preprocess_line(state, token);
+            } else {
+                return preprocess_unknown(state, token);
+            }
+        } else {
+            return preprocess_unknown(state, token);            
+        }
+    }
+    return NULL;
+}
+
+static struct preprocessed_node* preprocess_block(struct tokenizer_state* state, struct token* token) {
+    struct preprocessed_node* block = make_node(preprocessed_node_block);
+    block->line = token->line;
+    block->column = token->column;
+    append_child_node(block, make_token_node(token));
+    while (next_token(state, token) == 0) {
+        if (token->type == token_directive) {
+            put_token(state, token);
+            return block;
+        } else {
+            append_child_node(block, make_token_node(token));
+        }
+    }
+    return block;
+}
+
+static struct preprocessed_node* preprocess_node(struct tokenizer_state* state, struct token* token) {
+    if (token->type == token_directive) {
+        return preprocess_directive(state, token);
+    } else {
+        return preprocess_block(state, token);
+    }
+}
+
 static struct preprocessed_source* preprocess_file(struct options* options, const char* file) {
     struct preprocessed_source* result = (struct preprocessed_source*)malloc(sizeof(struct preprocessed_source));
     if (result != NULL) {
@@ -452,53 +652,12 @@ static struct preprocessed_source* preprocess_file(struct options* options, cons
             state.is_new_line = 1;
             state.offset = 0;
 
+            struct preprocessed_node* root = make_node(preprocessed_node_root);
             struct token token;
             while (next_token(&state, &token) == 0) {
-                switch (token.type) {
-                    case token_directive:
-                        break;
-                    case token_unknown:
-                        break;
-                    case token_space:
-                        break;
-                    case token_stringify:
-                        break;
-                    case token_concat:
-                        break;
-                    case token_comment:
-                        break;
-                    case token_newline:
-                        break;
-                    case token_continue:
-                        break;
-                    case token_punc:
-                        break;
-                    case token_identifier:
-                        break;
-                    case token_string:
-                        break;
-                    case token_char:
-                        break;
-                    case token_integer:
-                        break;
-                    case token_integer_hex:
-                        break;
-                    case token_integer_octal:
-                        break;
-                    case token_integer_unsigned:
-                        break;
-                    case token_integer_long:
-                        break;
-                    case token_integer_unsigned_long:
-                        break;
-                    case token_integer_i64:
-                        break;
-                    case token_real_float:
-                        break;
-                    case token_real_double:
-                        break;
-                    case token_real_double_long:
-                        break;
+                struct preprocessed_node* node = preprocess_node(&state, &token);
+                if (node != NULL) {
+                    append_child_node(root, node);
                 }
             }
         }
