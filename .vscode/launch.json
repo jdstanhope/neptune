@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/neptune",
-            "args": ["-E", "${workspaceFolder}/src/main.c"],
+            "args": ["-E", "${workspaceFolder}/src/neptune.h"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
