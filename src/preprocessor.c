@@ -497,10 +497,50 @@ static struct preprocessed_node* parse_unknown(struct raw_token* token) {
 }
 
 static struct preprocessed_node* parse_include(struct raw_token* token) {
-    // TODO: needs to actually parse structure
-    struct preprocessed_node* node = parse_unknown(token);
-    node->type = preprocessed_node_include;
-    return node;
+    struct preprocessed_node* inc = make_node(preprocessed_node_include);
+    inc->head = token;
+    inc->tail = token;
+    
+    struct raw_token* start = next_preprocess_token(next_identifier(token));
+    if (start != NULL) {
+        if (start->type == raw_token_string) {
+            inc->value.include.name = duplicate_string_n(start->text + 1, start->length - 2);
+            inc->value.include.scope = 0;
+        } else if (start->type == raw_token_punc) {
+            if (start->text[0] == '<') {
+                struct raw_token* cur = start->next;
+                if (cur != NULL) {
+                    char* b = cur->text;
+                    while (cur != NULL && !(cur->type == raw_token_punc && cur->text[0] == '>')) {
+                        if (cur->type == raw_token_newline) {
+                            /* error */
+                        }
+                        cur = cur->next;
+                    }
+                    if (cur == NULL) {
+                        /* unterminated include */
+                    } else {
+                        char* e = cur->text;
+                        long len = e - b;
+                        inc->value.include.name = duplicate_string_n(b, len);
+                        inc->value.include.scope = 1;
+                    }
+                } else {
+
+                }
+            } else {
+                /* error: include directive with strange delimiter */
+            }
+        } else if (start->type == raw_token_identifier) {
+            /* macro to be subtituted */
+        } else {
+            /* error: unknown form for included file */
+        }
+        inc->tail = next_newline(start);
+    } else {
+        /* error: include directive then end of file */
+    }
+    return inc;
 }
 
 static struct preprocessed_node* parse_ifdef(struct raw_token* token) {
@@ -640,7 +680,7 @@ static struct preprocessed_node* parse_undef(struct raw_token* token) {
 static struct preprocessed_node* parse_directive(struct raw_token* token) {
     struct raw_token* directive = next_preprocess_token(token);
     if (directive->type == raw_token_identifier) {
-        if (strncmp(directive->text, "include", 8) == 0) {
+        if (strncmp(directive->text, "include", 7) == 0) {
             return parse_include(token);
         } else if (strncmp(directive->text, "ifdef", 5) == 0) {
             return parse_ifdef(token);

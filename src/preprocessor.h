@@ -61,6 +61,12 @@ enum preprocessed_node_type {
 
 struct preprocessed_node {
     enum preprocessed_node_type type;
+    union _value {
+        struct _include {
+            char* name;
+            int scope;
+        } include;
+    } value;
     struct raw_token* head;
     struct raw_token* tail;
     struct preprocessed_node* next;

@@ -8,6 +8,7 @@
 #define VERSION_PATCH 0
 #define VERSION_BUILD 0
 
+char* duplicate_string_n(const char* s, size_t len);
 char* duplicate_string(const char* s);
 
 enum error_code {

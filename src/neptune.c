@@ -2,16 +2,23 @@
 #include <stdlib.h>
 #include <strings.h>
 
+char* duplicate_string_n(const char* s, size_t len) {
+	if (len > 0 && s != NULL) {
+		char* result = malloc(sizeof(char)*(len + 1));
+		if (result != NULL) {
+			strncpy(result, s, len);
+			result[len] = '\0';
+			return result;
+		}
+	}
+	return NULL;
+}
+
 char* duplicate_string(const char* s) {
 	if (s != NULL) {
 		size_t len = strlen(s);
 		if (len > 0) {
-			char* result = malloc(sizeof(char)*(len + 1));
-			if (result != NULL) {
-				strncpy(result, s, len);
-				result[len] = '\0';
-				return result;
-			}
+			return duplicate_string_n(s, len);
 		}
 	}
 	return NULL;
