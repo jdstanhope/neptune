@@ -429,18 +429,14 @@ static struct raw_token* tokenize_file(const char* buffer) {
 }
 
 static struct raw_token* next_preprocess_token(struct raw_token* token) {
-    struct raw_token* current = token->next;
-    while (current != NULL && (current->type == raw_token_space || current->type == raw_token_comment)) {
-        current = current->next;
+    if (token != NULL) {
+        struct raw_token* current = token->next;
+        while (current != NULL && (current->type == raw_token_space || current->type == raw_token_comment)) {
+            current = current->next;
+        }
+        return current;
     }
-    return current;
-}
-
-static void put_token(struct tokenizer_state* state, struct raw_token* token) {
-    if (token->type == raw_token_directive) {
-        state->is_new_line = 1;
-    }
-    state->offset = state->offset - token->length;
+    return token;
 }
 
 static struct preprocessed_node* make_node(enum preprocessed_node_type type) {
@@ -526,7 +522,7 @@ static struct preprocessed_node* parse_include(struct raw_token* token) {
                         inc->value.include.scope = 1;
                     }
                 } else {
-
+                    /* error: file ended with '<' */
                 }
             } else {
                 /* error: include directive with strange delimiter */
@@ -671,10 +667,22 @@ static struct preprocessed_node* parse_define(struct raw_token* token) {
 }
 
 static struct preprocessed_node* parse_undef(struct raw_token* token) {
-    // TODO: needs to actually parse structure
-    struct preprocessed_node* node = parse_unknown(token);
-    node->type = preprocessed_node_undef;
-    return node;
+    struct preprocessed_node* undef = make_node(preprocessed_node_undef);
+    undef->head = token;
+    undef->tail = token;
+    struct raw_token* id = next_preprocess_token(next_identifier(token));
+    if (id != NULL) {
+        if (id->type == raw_token_identifier) {
+            undef->value.undef.name = duplicate_string_n(id->text, id->length);
+            undef->tail = next_newline(id);
+        } else {
+            /* error: fuck */
+        }
+    } else {
+        /* error: eof */
+    }
+
+    return undef;
 }
 
 static struct preprocessed_node* parse_directive(struct raw_token* token) {
@@ -789,13 +797,13 @@ static void print_node(FILE* file, int depth, struct preprocessed_node* node) {
                 print_node(file, depth+1, node->first);
                 break;
             case preprocessed_node_include:
-                fprintf(file, "%*cinclude\n", 2*depth, ' ');        
+                fprintf(file, "%*cinclude %s\n", 2*depth, ' ', node->value.include.name);
                 break;
             case preprocessed_node_define:
                 fprintf(file, "%*cdefine\n", 2*depth, ' ');        
                 break;
             case preprocessed_node_undef:
-                fprintf(file, "%*cundef\n", 2*depth, ' ');        
+                fprintf(file, "%*cundef %s\n", 2*depth, ' ', node->value.undef.name);
                 break;
             case preprocessed_node_ifdef:
                 fprintf(file, "%*cifdef\n", 2*depth, ' ');
@@ -864,6 +872,14 @@ static void free_raw_tokens(struct raw_token* token) {
 
 static void free_processed_node(struct preprocessed_node* node) {
     if (node != NULL) {
+        switch(node->type) {
+            case preprocessed_node_include:
+                free(node->value.include.name);
+                break;
+            case preprocessed_node_undef:
+                free(node->value.undef.name);
+                break;
+        }
         free_processed_node(node->first);
         free_processed_node(node->next);
         free(node);

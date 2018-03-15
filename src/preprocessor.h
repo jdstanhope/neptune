@@ -66,6 +66,9 @@ struct preprocessed_node {
             char* name;
             int scope;
         } include;
+        struct _undef {
+            char* name;
+        } undef;
     } value;
     struct raw_token* head;
     struct raw_token* tail;
